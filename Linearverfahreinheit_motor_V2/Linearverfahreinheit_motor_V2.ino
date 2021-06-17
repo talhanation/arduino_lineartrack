@@ -11,6 +11,7 @@ const int PIN_THREE = 13;
 
 static unsigned int stateHoming;
 
+String name;
 boolean buttonLeft = false;
 boolean buttonRight = false;
 
@@ -36,8 +37,19 @@ void loop() {
 void initConsol(){
   
   if (Console.available() > 0) {
-
     char c = Console.read();
+  
+  if (c == 'H') {
+
+      Console.print("Hi ");
+      Console.print(name);
+      Console.println("! Nice to meet you!");
+      Console.println();
+      Console.println("Hi, what's your name?");
+      name = "Linear";
+
+      }
+     
   }
 }
 
