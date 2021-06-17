@@ -28,7 +28,7 @@ void setup() {
 }
 
 void loop() {  
-  initConsole(); 
+  initConsol();
   control(true);
   startHoming(false);
 }
@@ -38,6 +38,7 @@ void initConsol(){
   if (Console.available() > 0) {
 
     char c = Console.read();
+  }
 }
 
 void startHoming(bool start){  
