@@ -1,5 +1,6 @@
 #include <Wire.h>
 #include "Arduino.h"
+#include "Keyboard.h"
 #include <Adafruit_MotorShield.h>      
 
 Adafruit_MotorShield AFMS = Adafruit_MotorShield();
@@ -17,14 +18,12 @@ boolean STOP = false;
 boolean homingstart = false;
 boolean input = false;
 
-char consoleInput;
+String consoleInput;
 
 void setup() {
   Serial.begin(9600);
   pinMode(PIN_ONE, INPUT_PULLUP);
   pinMode(PIN_THREE, INPUT_PULLUP);
-  AFMS.begin();                
-  myMotor->setSpeed(10);  // 10 rpm
   stateHoming = 0;
   stateInitConsole = 0;
   Serial.println("Linearverfahreinheit gestartet!");
@@ -38,27 +37,24 @@ void setup() {
 void loop() {  
   consoleInput = Serial.read();
   initConsole(consoleInput);
-  //control(true);
-  //startHoming(true);
-  //stepperTest(true);
 }
 
-void initConsole(char consoleInput){
+void initConsole(String consoleInput){
     switch (stateInitConsole){
       case 0:
         control(false);
         startHoming(false);
         stepperTest(false);
         stateHoming = 0;
-        if(consoleInput == 't'){
+        if(consoleInput == "t"){
           Serial.println("StepperTest wurde ausgewählt!");
           stateInitConsole = 1;
         }
-        if(consoleInput == 'c'){
+        if(consoleInput == "c"){
           Serial.println("Control wurde ausgewählt!");
           stateInitConsole = 2;
         }
-        if(consoleInput == 'h'){
+        if(consoleInput == "G28"){
           Serial.println("Homing wurde ausgewählt!");
           stateInitConsole = 3;
         }
@@ -70,7 +66,7 @@ void initConsole(char consoleInput){
         stepperTest(true);  
         startHoming(false);   
         control(false); 
-        if(consoleInput == 'x'){
+        if(consoleInput == "x"){
           Serial.println("StepperTest wurde abgebrochen!");
           stateInitConsole = 0;
         }
@@ -81,7 +77,7 @@ void initConsole(char consoleInput){
         control(true);
         startHoming(false);
         stepperTest(false);
-        if(consoleInput == 'x'){
+        if(consoleInput == "x"){
           Serial.println("Control wurde abgebrochen!");
           stateInitConsole = 0;
         }
@@ -91,24 +87,11 @@ void initConsole(char consoleInput){
           startHoming(true);
           control(false);
           stepperTest(false);
-          if(consoleInput == 'x'){
+          if(consoleInput == "x"){
           Serial.println("Homing wurde abgebrochen!");
           stateInitConsole = 0;
           }
           break;
-
-    
-    /*if (input =='r'){
-      //r_waspressed = true;
-      Serial.println("SIGNAL");
-      digitalWrite(8, HIGH);
-      
-    }
-    else if (input == 'x'){
-    Serial.println("NO SIGNAL");
-    //STOP = true;
-    }
-    */
   }
 }
 
@@ -116,7 +99,8 @@ void startHoming(bool start){
   
   buttonLeft = digitalRead(PIN_ONE);
   buttonRight = digitalRead(PIN_THREE);
-
+  setupMotor(10);
+  
   if (start == true){  
     switch (stateHoming)
     {
@@ -157,7 +141,8 @@ void startHoming(bool start){
 void control(bool start){  
   buttonLeft = digitalRead(PIN_ONE);
   buttonRight = digitalRead(PIN_THREE);
-  
+  setupMotor(10);
+    
   if (start == true){ 
     if (buttonLeft == LOW) {
       myMotor->step(10, FORWARD, DOUBLE); 
@@ -167,19 +152,24 @@ void control(bool start){
       myMotor->step(10, BACKWARD, DOUBLE); 
       Serial.println("Rechter Stopper Betätigt");
     }else {
-        myMotor->step(RELEASE, DOUBLE);
         Serial.println("Loop");
     }  
   }
 }
 
 void stepperTest(bool start){
-
+  setupMotor(10);
+  
   if (start == true){ 
   Serial.println("STEPPER TEST");
-  myMotor->step(10, FORWARD, SINGLE); 
-  myMotor->step(10, BACKWARD, SINGLE);
+  myMotor->step(100, FORWARD, SINGLE); 
+  myMotor->step(100, BACKWARD, SINGLE);
   }
+}
+
+void setupMotor(int motorspeed){
+  AFMS.begin();                
+  myMotor->setSpeed(motorspeed);  // 10 rpm
 }
 
 double setPos(){
