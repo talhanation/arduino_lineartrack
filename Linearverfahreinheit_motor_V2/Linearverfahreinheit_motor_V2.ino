@@ -17,83 +17,85 @@ boolean STOP = false;
 boolean homingstart = false;
 boolean input = false;
 
+char consoleInput;
+
 void setup() {
   Serial.begin(9600);
-  Serial.println("Bitte t - für steppertest ");
-  Serial.println("Bitte h - für homing ");
-  Serial.println("Bitte c - für control ");
-  Serial.println("Console: ");
   pinMode(PIN_ONE, INPUT_PULLUP);
   pinMode(PIN_THREE, INPUT_PULLUP);
   AFMS.begin();                
   myMotor->setSpeed(10);  // 10 rpm
   stateHoming = 0;
   stateInitConsole = 0;
-  buttonLeft = digitalRead(PIN_ONE);
-  buttonRight = digitalRead(PIN_THREE);
+  Serial.println("Linearverfahreinheit gestartet!");
+  Serial.println("Bitte t - für steppertest ");
+  Serial.println("Bitte h - für homing ");
+  Serial.println("Bitte c - für control ");
+  Serial.println("Bitte x - für abbrechen ");
+  Serial.println("Console: ");
 }
 
 void loop() {  
-  initConsole();
-  //control(false);
-  //startHoming(false);
-  //stepperTest(false);
+  consoleInput = Serial.read();
+  initConsole(consoleInput);
+  //control(true);
+  //startHoming(true);
+  //stepperTest(true);
 }
 
-void initConsole(){
-  if (Serial.available() > 0){
-  char consoleInput = char(Serial.read());
-  
-  switch (stateInitConsole){
-    case 0:
-      control(false);
-      startHoming(false);
-      stepperTest(false);
-      Serial.println("Bitte t - für steppertest ");
-      Serial.println("Bitte h - für homing ");
-      Serial.println("Bitte c - für control ");
-      if(consoleInput == 't'){
-        Serial.println("StepperTest wurde ausgewählt!");
-        stateInitConsole = 1;
-      }
-      else if(consoleInput == 'c'){
-        Serial.println("Control wurde ausgewählt!");
-        stateInitConsole = 2;
-      }
-      else if(consoleInput == 'h'){
-        Serial.println("Homing wurde ausgewählt!");
-        stateInitConsole = 3;
-      }
-      else{
-        Serial.println("Input wurde nicht erkannt!");
-        stateInitConsole = 0;
-      }
-      break;
-  
-    case 1:
-      startHoming(true);      
-      if(consoleInput == 'x'){
-        Serial.println("StepperTest wurde abgebrochen!");
-        stateInitConsole = 0;
-      }   
-      break;  
-    
-    case 2:
-      control(true);
-      if(consoleInput == 'x'){
-        Serial.println("Control wurde abgebrochen!");
-        stateInitConsole = 0;
-      }
-      break;
-
-    case 3:
-        startHoming(true);
+void initConsole(char consoleInput){
+    switch (stateInitConsole){
+      case 0:
+        control(false);
+        startHoming(false);
+        stepperTest(false);
+        if(consoleInput == 't'){
+          Serial.println("StepperTest wurde ausgewählt!");
+          stateInitConsole = 1;
+        }
+        if(consoleInput == 'c'){
+          Serial.println("Control wurde ausgewählt!");
+          stateInitConsole = 2;
+        }
+        if(consoleInput == 'h'){
+          Serial.println("Homing wurde ausgewählt!");
+          stateInitConsole = 3;
+        }
+        else{
+        }
+        break;
+        
+      case 1:
+        stepperTest(true);  
+        startHoming(false);   
+        control(false); 
         if(consoleInput == 'x'){
-        Serial.println("Homing wurde abgebrochen!");
-        stateInitConsole = 0;
+          Serial.println("StepperTest wurde abgebrochen!");
+          stateInitConsole = 0;
+        }
+
+        break;   
+      
+      case 2:
+        control(true);
+        startHoming(false);
+        stepperTest(false);
+        if(consoleInput == 'x'){
+          Serial.println("Control wurde abgebrochen!");
+          stateInitConsole = 0;
         }
         break;
     
+      case 3:
+          startHoming(true);
+          control(false);
+          stepperTest(false);
+          if(consoleInput == 'x'){
+          Serial.println("Homing wurde abgebrochen!");
+          stateInitConsole = 0;
+          }
+          break;
+
     
     /*if (input =='r'){
       //r_waspressed = true;
@@ -106,28 +108,24 @@ void initConsole(){
     //STOP = true;
     }
     */
-    }
   }
 }
 
 void startHoming(bool start){  
   
-  //buttonLeft = digitalRead(PIN_ONE);
-  //buttonRight = digitalRead(PIN_THREE);
+  buttonLeft = digitalRead(PIN_ONE);
+  buttonRight = digitalRead(PIN_THREE);
 
-  if (start){  
+  if (start == true){  
     switch (stateHoming)
     {
-      case 0:
-          myMotor->step(0, FORWARD, DOUBLE);
-          myMotor->step(0, BACKWARD, DOUBLE); 
-          delay(100);
-          Serial.print("...Homing...Gestartet...");
+      case 0: 
+          Serial.println("...Homing...Gestartet...");
           stateHoming = 1;
           break;
        
        case 1:
-          myMotor->step(10, FORWARD, DOUBLE);
+          myMotor->step(10, BACKWARD, DOUBLE);
           Serial.println("...Homing...  Suche nach rechtem Endstop");
           
           if(buttonRight == LOW){
@@ -137,7 +135,7 @@ void startHoming(bool start){
           break;
        
        case 2:
-        myMotor->step(10, BACKWARD, DOUBLE);  
+        myMotor->step(10, FORWARD, DOUBLE);  
         Serial.println("...Homing...  Suche nach linkem Endstop");
                   
         if(buttonLeft == LOW){
@@ -148,18 +146,17 @@ void startHoming(bool start){
     
         case 3:
           Serial.println("...Homing...Beendet");
-          myMotor->step(0, FORWARD, DOUBLE);
-          myMotor->step(0, BACKWARD, DOUBLE); 
+          myMotor->run(RELEASE);
           break;
     }
   }
 }
 
 void control(bool start){  
-  //buttonLeft = digitalRead(PIN_ONE);
-  //buttonRight = digitalRead(PIN_THREE);
+  buttonLeft = digitalRead(PIN_ONE);
+  buttonRight = digitalRead(PIN_THREE);
   
-  if (start){ 
+  if (start == true){ 
     if (buttonLeft == LOW) {
       myMotor->step(10, FORWARD, DOUBLE); 
       Serial.println("Linker Stopper Betätigt");
@@ -168,6 +165,7 @@ void control(bool start){
       myMotor->step(10, BACKWARD, DOUBLE); 
       Serial.println("Rechter Stopper Betätigt");
     }else {
+        myMotor->step(RELEASE, DOUBLE);
         Serial.println("Loop");
     }  
   }
@@ -175,10 +173,10 @@ void control(bool start){
 
 void stepperTest(bool start){
 
-  if (start){ 
-  Serial.println("Double coil steps");
-  myMotor->step(100, FORWARD, DOUBLE); 
-  myMotor->step(100, BACKWARD, DOUBLE);
+  if (start == true){ 
+  Serial.println("STEPPER TEST");
+  myMotor->step(10, FORWARD, SINGLE); 
+  myMotor->step(10, BACKWARD, SINGLE);
   }
 }
 
