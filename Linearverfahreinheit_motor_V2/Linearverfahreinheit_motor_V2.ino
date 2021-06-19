@@ -146,7 +146,7 @@ void startHoming(bool start){
     
         case 3:
           Serial.println("...Homing...Beendet");
-          myMotor->run(RELEASE);
+          myMotor->step(RELEASE, DOUBLE);
           break;
     }
   }
