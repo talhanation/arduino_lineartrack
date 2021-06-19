@@ -49,6 +49,7 @@ void initConsole(char consoleInput){
         control(false);
         startHoming(false);
         stepperTest(false);
+        stateHoming = 0;
         if(consoleInput == 't'){
           Serial.println("StepperTest wurde ausgewählt!");
           stateInitConsole = 1;
@@ -146,7 +147,8 @@ void startHoming(bool start){
     
         case 3:
           Serial.println("...Homing...Beendet");
-          myMotor->step(RELEASE, DOUBLE);
+          myMotor->step(100,RELEASE, DOUBLE);
+          stateInitConsole = 0;
           break;
     }
   }
