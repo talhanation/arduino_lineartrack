@@ -2,13 +2,14 @@
 #include "Arduino.h"
 #include <Adafruit_MotorShield.h>      
 
-Adafruit_MotorShield AFMS = Adafruit_MotorShield(); 
+Adafruit_MotorShield AFMS = Adafruit_MotorShield();
 Adafruit_StepperMotor *myMotor = AFMS.getStepper(200, 2);
 
 const int PIN_ONE = 12;
 const int PIN_THREE = 13;
 
 static unsigned int stateHoming;
+static unsigned int stateInitConsole;
 
 boolean buttonLeft = false;
 boolean buttonRight = false;
@@ -27,6 +28,9 @@ void setup() {
   AFMS.begin();                
   myMotor->setSpeed(10);  // 10 rpm
   stateHoming = 0;
+  stateInitConsole = 0;
+  buttonLeft = digitalRead(PIN_ONE);
+  buttonRight = digitalRead(PIN_THREE);
 }
 
 void loop() {  
@@ -40,30 +44,54 @@ void initConsole(){
   if (Serial.available() > 0){
   char consoleInput = char(Serial.read());
   
-  switch (consoleInput){
-    
-    case 't':
-      stepperTest(true);
-      Serial.println("STEPPERTEST");
+  switch (stateInitConsole){
+    case 0:
+      control(false);
+      startHoming(false);
+      stepperTest(false);
+      Serial.println("Bitte t - für steppertest ");
+      Serial.println("Bitte h - für homing ");
+      Serial.println("Bitte c - für control ");
+      if(consoleInput == 't'){
+        Serial.println("StepperTest wurde ausgewählt!");
+        stateInitConsole = 1;
+      }
+      else if(consoleInput == 'c'){
+        Serial.println("Control wurde ausgewählt!");
+        stateInitConsole = 2;
+      }
+      else if(consoleInput == 'h'){
+        Serial.println("Homing wurde ausgewählt!");
+        stateInitConsole = 3;
+      }
+      else{
+        Serial.println("Input wurde nicht erkannt!");
+        stateInitConsole = 0;
+      }
       break;
   
-    case 'h':
-      startHoming(true);
-      Serial.println("HOMING");   
+    case 1:
+      startHoming(true);      
+      if(consoleInput == 'x'){
+        Serial.println("StepperTest wurde abgebrochen!");
+        stateInitConsole = 0;
+      }   
       break;  
     
-    case 'c':
+    case 2:
       control(true);
-      Serial.println("CONTROL");
+      if(consoleInput == 'x'){
+        Serial.println("Control wurde abgebrochen!");
+        stateInitConsole = 0;
+      }
       break;
 
-    case 'x':
-        control(false);
-        startHoming(false);
-        stepperTest(false);
-        Serial.println("Bitte t - für steppertest ");
-        Serial.println("Bitte h - für homing ");
-        Serial.println("Bitte c - für control ");
+    case 3:
+        startHoming(true);
+        if(consoleInput == 'x'){
+        Serial.println("Homing wurde abgebrochen!");
+        stateInitConsole = 0;
+        }
         break;
     
     
@@ -84,10 +112,10 @@ void initConsole(){
 
 void startHoming(bool start){  
   
-  buttonLeft = digitalRead(PIN_ONE);
-  buttonRight = digitalRead(PIN_THREE);
+  //buttonLeft = digitalRead(PIN_ONE);
+  //buttonRight = digitalRead(PIN_THREE);
 
-  if (start == true){  
+  if (start){  
     switch (stateHoming)
     {
       case 0:
@@ -128,8 +156,8 @@ void startHoming(bool start){
 }
 
 void control(bool start){  
-  buttonLeft = digitalRead(PIN_ONE);
-  buttonRight = digitalRead(PIN_THREE);
+  //buttonLeft = digitalRead(PIN_ONE);
+  //buttonRight = digitalRead(PIN_THREE);
   
   if (start){ 
     if (buttonLeft == LOW) {
