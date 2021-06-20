@@ -2,8 +2,8 @@
 #include "Arduino.h"
 //#include "Keyboard.h"
 #include <Adafruit_MotorShield.h>   
+#define BAUD (9600)
 /*
-#define BAUD (9600) // How fast is the Arduino talking?
 #define MAX_BUF (64) // What is the longest message Arduino can store?
 
 char buffer[MAX_BUF]; // where we store the message until we get a ';'
@@ -15,7 +15,8 @@ Adafruit_StepperMotor *myMotor = AFMS.getStepper(200, 2);
 const int PIN_ONE = 12;
 const int PIN_THREE = 13;
 
-int steps; // steps für pos abfrage
+int steps = 0; // steps für pos abfrage
+float px; // position
 
 static unsigned int stateHoming;
 static unsigned int stateInitConsole;
@@ -26,28 +27,45 @@ boolean buttonRight = false;
 char consoleInput;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(BAUD);
   pinMode(PIN_ONE, INPUT_PULLUP);
   pinMode(PIN_THREE, INPUT_PULLUP);
   stateHoming = 0;
-  steps=0; //beim starten immer neues homing machen
+  steps = 0; //beim starten immer neues homing machen
   stateInitConsole = 0;
   Serial.println("Linearverfahreinheit gestartet!");
   Serial.println("Bitte t - für steppertest ");
   Serial.println("Bitte h - für homing ");
-  Serial.println("Bitte c - für control ");
+  Serial.println("Bitte c - für control mit den endstopps");
   Serial.println("Bitte x - für abbrechen ");
-  //ready();
-  //help;
-  
+  Serial.println("Bitte a - für Positionsabfrage ");
+  Serial.println("Bitte l - für anfahren für eine bestimme Länge ");
+  Serial.println("Bitte k - für anfahren einer bestimme Position ");
+  //CmdReady();
+  //help();
+  setupMotor(15, true); //hard mode - motor immer aktiv
+  //controlMotor(true); //safe mode - motor aus im leer lauf
 }
 
 void loop() {  
   consoleInput = Serial.read();
   initConsole(consoleInput);
-  controlMotor();
+  //controlMotor(true); //safe mode - motor aus im leer lauf
+ 
+  //GCodeReader();
 }
-
+/*
+void controlMotor(bool start){
+  if (start == true){
+    switch (stateInitConsole){
+        case 0:
+          setupMotor(0,false);
+        default:
+          setupMotor(15, true);
+    }
+  }
+}
+*/
 void initConsole(char consoleInput){
     switch (stateInitConsole){
       case 0:
@@ -68,6 +86,18 @@ void initConsole(char consoleInput){
           Serial.println("Homing wurde ausgewählt!");
           stateInitConsole = 3;
         }
+        if(consoleInput == 'a'){
+          Serial.println("Abfrage der Position wurde ausgewählt!");
+          stateInitConsole = 4;
+        }
+        if(consoleInput == 'l'){
+          Serial.println("addPos wurde ausgewählt!");
+          stateInitConsole = 5;
+        }
+        if(consoleInput == 'k'){
+          Serial.println("Anfahren zu Position wurde ausgewählt!");
+          stateInitConsole = 6;
+        }
         else{
         }
         break;
@@ -82,7 +112,7 @@ void initConsole(char consoleInput){
         }
 
         break;   
-      
+    
       case 2:
         control(true);
         startHoming(false);
@@ -102,7 +132,41 @@ void initConsole(char consoleInput){
           stateInitConsole = 0;
           }
           break;
-  }
+
+     case 4:
+          startHoming(false);
+          control(false);
+          stepperTest(false);
+          getPos();
+          delay(100);
+          stateInitConsole = 0;
+          break;     
+     
+     case 5:
+          startHoming(false);
+          control(false);
+          stepperTest(false);
+          Serial.println("Bitte die Länge in mm angeben: " );
+          int input_l_in_mm = Serial.read();
+          Serial.print("Ausgewählte länge ist: ");
+          Serial.println(input_l_in_mm);
+          
+          addPos(input_l_in_mm);
+          stateInitConsole = 0;
+          break;
+          
+     case 6:    
+          startHoming(false);
+          control(false);
+          stepperTest(false);
+          Serial.println("Bitte die Position in mm angaben: " );
+          int input_pos = Serial.read();
+          Serial.print("Ausgewählte Position ist: ");
+          
+          setPos(input_pos); 
+          stateInitConsole = 0;
+          break;     
+  }     
 }
 
 void startHoming(bool start){   
@@ -118,7 +182,7 @@ void startHoming(bool start){
           break;
        
        case 1:
-          myMotor->step(10, BACKWARD, DOUBLE);
+          myMotor->step(5, BACKWARD, DOUBLE);
           Serial.println("...Homing...  Suche nach rechtem Endstop");
           
           if(buttonRight == LOW){
@@ -128,7 +192,7 @@ void startHoming(bool start){
           break;
        
        case 2:
-        myMotor->step(10, FORWARD, DOUBLE);  
+        myMotor->step(5, FORWARD, DOUBLE);  
         Serial.println("...Homing...  Suche nach linkem Endstop");
         steps++;          
         if(buttonLeft == LOW){
@@ -140,7 +204,7 @@ void startHoming(bool start){
         case 3:
           Serial.println("...Homing...Beendet");
           Serial.print("Totale länge der Strecke: ");
-          Serial.println(steps);
+          Serial.println(steps * 5);
           myMotor->step(25, RELEASE, DOUBLE);
           stateInitConsole = 0;
           break;
@@ -155,11 +219,11 @@ void control(bool start){
     
   if (start == true){ 
     if (buttonLeft == LOW) {
-      myMotor->step(20, FORWARD, DOUBLE); 
+      myMotor->step(10, FORWARD, DOUBLE); 
       Serial.println("Linker Stopper Betätigt");
     }
     else if (buttonRight == LOW) {
-      myMotor->step(20, BACKWARD, DOUBLE); 
+      myMotor->step(10, BACKWARD, DOUBLE); 
       Serial.println("Rechter Stopper Betätigt");
     }else {
         Serial.println("Loop");
@@ -175,14 +239,6 @@ void stepperTest(bool start){
   }
 }
 
-void controlMotor(){
-  switch (stateInitConsole){
-      case 0:
-        setupMotor(0,false);
-      default:
-        setupMotor(10, true);
-  }
-}
 void setupMotor(int motorspeed, bool start){
   if (start){
   AFMS.begin();                
@@ -190,26 +246,114 @@ void setupMotor(int motorspeed, bool start){
   }
 }
 
-void getPos(){
+int getPos(){
+  Serial.print("Aktuelle Postition: ");
+  int pos = (700 - steps)*0.5; 
+  Serial.print(pos);
+  Serial.println(" mm");
+  return pos;
+}
+
+void setPos(int pos_in_mm){
+  int x = getPos();
+  int steps = (x - pos_in_mm)*2;
   
 }
 
+void addPos(float x_in_mm){
+  int addsteps = x_in_mm * 0.5;
+  if (x_in_mm <= 0){
+    myMotor->step(addsteps, BACKWARD, DOUBLE);
+  }else
+  myMotor->step(addsteps, FORWARD, DOUBLE);
+}
+
 void help() {
-  Serial.print(F("Linearverfahreinheit gestartet!"));
+  Serial.println(F("Linearverfahreinheit gestartet!"));
   Serial.println(F("Comands:"));
   Serial.println(F("G00 [X(steps)] [F(feedrate)]; - Anfahren steps"));
   Serial.println(F("G01 [X(steps)] [F(feedrate)]; - Anfahren einer Position"));
   Serial.println(F("G04 P[seconds]; - delay"));
   Serial.println(F("G28;  - Homing-Startpunkt"));
-  Serial.println(F("G90; - absolute mode"));
-  Serial.println(F("G91; - relative mode"));
-  Serial.println(F("G92 [X(steps)]; - change logical position"));
   Serial.println(F("M18; - Motor abschalten"));
   Serial.println(F("M100; - Hilfe"));
   Serial.println(F("M114; - Positions- und Geschwindikkeitsabfrage"));
 }
 /*
-void ready() {
+void CmdReady() {
   sofar=0; // clear input buffer
-  Serial.print(F("> ")); // signal ready to receive i
+  Serial.print("> "); // signal ready to receive i
+}
+
+void GCodeReader(){
+
+    char c = Serial.read(); // get it
+    Serial.print(c); // optional: repeat back what I got for debugging
+
+    // store the byte as long as there's room in the buffer.
+    // if the buffer is full some data might get lost
+    if(sofar < MAX_BUF) buffer[sofar++]=c;
+    // if we got a return character (\n) the message is done.
+    if(c=='\n') {
+      Serial.print(F("\r\n")); // optional: send back a return for debugging
+
+      // strings must end with a \0.
+      buffer[sofar]=0;
+      processCommand(); // do something with the command
+      CmdReady();
+    }
+}
+
+/**
+ * Read the input buffer and find any recognized commands. One G or M command per line.
+ */
+/*
+void processCommand() {
+  // look for commands that start with 'G'
+  int cmd=parsenumber('G',-1);
+  switch(cmd) {
+  case 0: // move in a line
+  case 1: // move in a line
+    //setFeedRate(parsenumber('F',fr));
+    //line( parsenumber('X',(mode_abs?px:0)) + (mode_abs?0:px),
+    //parsenumber('Y',(mode_abs?py:0)) + (mode_abs?0:py) );
+    break;
+  case 4: //pause(parsenumber('P',0)*1000); break; // wait a while
+  case 92: // set logical position
+    position( parsenumber('X',0));
+    break;
+  default: break;
+  }
+
+  // look for commands that start with 'M'
+  cmd=parsenumber('M',-1);
+  switch(cmd) {
+  case 18: // turns off power to steppers (releases the grip)
+    setupMotor(0, false);
+    break;
+    
+  case 100: help(); break;
+  
+  case 114: getPos(); break; // prints px, py, fr, and mode.
+  default: break;
+  }
+
+  // if the string has no G or M commands it will get here and the Arduino will silently ignore it
+}
+
+float parsenumber(char code,float val) {
+  char *ptr=buffer;
+  
+  while(ptr && *ptr && ptr<buffer+sofar) {
+      if(*ptr==code) {
+        return atof(ptr+1);
+      }
+    ptr=strchr(ptr,' ')+1;
+    }
+  return val;
+}
+
+void position(float npx) {
+  px=npx;
+}
 */
