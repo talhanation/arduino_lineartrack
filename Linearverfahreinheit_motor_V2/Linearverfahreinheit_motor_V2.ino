@@ -45,11 +45,13 @@ void setup() {
 void loop() {  
   consoleInput = Serial.read();
   initConsole(consoleInput);
+  controlMotor();
 }
 
 void initConsole(char consoleInput){
     switch (stateInitConsole){
       case 0:
+        //setupMotor(0,false);
         control(false);
         startHoming(false);
         stepperTest(false);
@@ -73,7 +75,7 @@ void initConsole(char consoleInput){
       case 1:
         stepperTest(true);  
         startHoming(false);   
-        control(false); 
+        control(false);
         if(consoleInput == 'x'){
           Serial.println("StepperTest wurde abgebrochen!");
           stateInitConsole = 0;
@@ -103,9 +105,7 @@ void initConsole(char consoleInput){
   }
 }
 
-void startHoming(bool start){  
-  setupMotor(10);
-  
+void startHoming(bool start){   
   buttonLeft = digitalRead(PIN_ONE);
   buttonRight = digitalRead(PIN_THREE);
 
@@ -141,7 +141,7 @@ void startHoming(bool start){
           Serial.println("...Homing...Beendet");
           Serial.print("Totale länge der Strecke: ");
           Serial.println(steps);
-          myMotor->step(20,RELEASE, DOUBLE);
+          myMotor->step(25, RELEASE, DOUBLE);
           stateInitConsole = 0;
           break;
     }
@@ -151,7 +151,7 @@ void startHoming(bool start){
 void control(bool start){  
   buttonLeft = digitalRead(PIN_ONE);
   buttonRight = digitalRead(PIN_THREE);
-  setupMotor(10);
+  //setupMotor(10);
     
   if (start == true){ 
     if (buttonLeft == LOW) {
@@ -167,9 +167,7 @@ void control(bool start){
   }
 }
 
-void stepperTest(bool start){
-  setupMotor(10);
-  
+void stepperTest(bool start){ 
   if (start == true){ 
   Serial.println("STEPPER TEST");
   myMotor->step(50, FORWARD, SINGLE); 
@@ -177,9 +175,19 @@ void stepperTest(bool start){
   }
 }
 
-void setupMotor(int motorspeed){
+void controlMotor(){
+  switch (stateInitConsole){
+      case 0:
+        setupMotor(0,false);
+      default:
+        setupMotor(10, true);
+  }
+}
+void setupMotor(int motorspeed, bool start){
+  if (start){
   AFMS.begin();                
   myMotor->setSpeed(motorspeed);  // 10 rpm
+  }
 }
 
 void getPos(){
