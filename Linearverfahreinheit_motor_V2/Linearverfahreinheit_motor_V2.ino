@@ -15,10 +15,12 @@ Adafruit_StepperMotor *myMotor = AFMS.getStepper(200, 2);
 const int PIN_ONE = 12;
 const int PIN_THREE = 13;
 
+float POS;
+
 float input_l_in_mm = 0;
+float input_pos_in_mm = 0;
 float addSteps = 0; 
 int steps = 0; // steps für pos abfrage
-float px; // position
 
 static unsigned int stateHoming;
 static unsigned int stateInitConsole;
@@ -31,6 +33,7 @@ boolean buttonRight = false;
 boolean stopMotor = false;
 
 char consoleInput;
+float x, dx;
 
 void setup() {
   Serial.println("Linearverfahreinheit V1 gestartet!");
@@ -44,9 +47,7 @@ void setup() {
   steps = 0; //beim starten immer neues homing machen
   stateInitConsole = 0;
   help();
-  //CmdReady();
-  //help();
-  //setupMotor(15, true); //hard mode - motor immer aktiv
+  //setupMotor(15, true); //hard mode - motor immer aktiv - controlMotor muss ausgeklammert werden
   
 }
 
@@ -65,37 +66,62 @@ void help(){
 void loop() {  
   consoleInput = Serial.read();
   initConsole(consoleInput);
-  controlMotor(true); //safe mode - motor aus im leer lauf
-  //GCodeReader();
+  controlMotor(true); //safe mode - motor aus im leerlauf --> harken beim homing und control
+  //GCodeReader();?????????????
+}
+
+int intInput(){
+  
+  char str[10];
+  int charcount=0;
+  memset(str,0,sizeof(str)); // String-Puffer löschen
+  while (!Serial.available()); // Warten bis 1. Zeichen im Eingangspuffer
+  delay(100); // Warten auf weitere Zeichen im Eigangspuffer
+  while (Serial.available() && charcount<9)
+  {
+    str[charcount]=Serial.read(); // Zeichen aus Eingangspuffer lesen
+    charcount++;
+  }
+  return atoi(str); // String in Integer-Rückgabewert wandeln
 }
 
 void controlMotor(bool start){
+  buttonLeft = digitalRead(PIN_ONE);
+  buttonRight = digitalRead(PIN_THREE);
   if (start == true){
     switch (stateInitConsole){
         case 0:
           setupMotor(0,false);
         default:
-          //if (stopMotor = false) {
+          if ((stateInitConsole == 5) || (stateInitConsole == 6)) {
+              if ((buttonLeft == LOW)||(buttonLeft == LOW)){
+                releaseMotor();
+              }else {
+                setupMotor(15, true);
+              }
+          }else {
           setupMotor(15, true);
-          //}else {
-            //releaseMotor();
-        
-      //}
+          }
     }
   }
+}
+
+void releaseMotor(){
+  myMotor->step(15, RELEASE, DOUBLE);
 }
 
 void initConsole(char consoleInput){
     switch (stateInitConsole){
       case 0:
-        //setupMotor(0,false);
         control(false);
         startHoming(false);
         stepperTest(false);
         addPos(false);
+        setPos(false);
         stateHoming = 0;
         stateAddPos = 0;
         stateSetPos = 0;
+        
         if(consoleInput == 't'){
           Serial.println("StepperTest wurde ausgewählt!");
           stateInitConsole = 1;
@@ -109,7 +135,6 @@ void initConsole(char consoleInput){
           stateInitConsole = 3;
         }
         if(consoleInput == 'a'){
-          Serial.println("Abfrage der Position wurde ausgewählt!");
           stateInitConsole = 4;
         }
         if(consoleInput == 'l'){
@@ -120,8 +145,6 @@ void initConsole(char consoleInput){
           Serial.println("Anfahren zu Position wurde ausgewählt!");
           stateInitConsole = 6;
         }
-        else{
-        }
         break;
         
       case 1:
@@ -129,6 +152,7 @@ void initConsole(char consoleInput){
         startHoming(false);   
         control(false);
         addPos(false);
+        setPos(false);
         if(consoleInput == 'x'){
           Serial.println("StepperTest wurde abgebrochen!");
           stateInitConsole = 0;
@@ -141,6 +165,7 @@ void initConsole(char consoleInput){
         startHoming(false);
         stepperTest(false);
         addPos(false);
+        setPos(false);
         if(consoleInput == 'x'){
           Serial.println("Control wurde abgebrochen!");
           stateInitConsole = 0;
@@ -152,6 +177,7 @@ void initConsole(char consoleInput){
           control(false);
           stepperTest(false);
           addPos(false);
+          setPos(false);
           if(consoleInput == 'x'){
             Serial.println("Homing wurde abgebrochen!");
             stateInitConsole = 0;
@@ -163,6 +189,7 @@ void initConsole(char consoleInput){
           control(false);
           stepperTest(false);
           addPos(false);
+          setPos(false);
           getPos();
           if(consoleInput == 'x'){
             Serial.println("Positionsabfrage wurde abgebrochen!");
@@ -175,7 +202,7 @@ void initConsole(char consoleInput){
           startHoming(false);
           control(false);
           stepperTest(false);
-
+          setPos(false);
           addPos(true);
           if(consoleInput == 'x'){
             Serial.println("Anfahren für eine Länge wurde abgebrochen!");
@@ -187,11 +214,11 @@ void initConsole(char consoleInput){
           control(false);
           stepperTest(false);
           addPos(false);
-          //setPos(true);
-          Serial.println("Bitte die Position in mm angaben: " );
-          int input_pos = Serial.read();
-          Serial.print("Ausgewählte Position ist: ");
-          stateInitConsole = 0;
+          setPos(true);
+          if(consoleInput == 'x'){
+            Serial.println("Anfahren für eine Länge wurde abgebrochen!");
+            stateInitConsole = 0;
+          }
           break;     
   }     
 }
@@ -232,7 +259,9 @@ void startHoming(bool start){
           Serial.println("...Homing...Beendet");
           Serial.print("Totale länge der Strecke: ");
           Serial.println(steps * 5);
+          
           releaseMotor();
+          POS = 0;
           help();
           stateInitConsole = 0;
           break;
@@ -240,21 +269,18 @@ void startHoming(bool start){
   }
 }
 
-void releaseMotor(){
-  myMotor->step(15, RELEASE, DOUBLE);
-}
-
 void control(bool start){  
   buttonLeft = digitalRead(PIN_ONE);
   buttonRight = digitalRead(PIN_THREE);
-  //setupMotor(10);
     
   if (start == true){ 
     if (buttonLeft == LOW) {
+      POS += 2.87;
       myMotor->step(10, FORWARD, DOUBLE); 
       Serial.println("Linker Stopper Betätigt");
     }
     else if (buttonRight == LOW) {
+      POS += 2.87;
       myMotor->step(10, BACKWARD, DOUBLE); 
       Serial.println("Rechter Stopper Betätigt");
     }else {
@@ -278,18 +304,74 @@ void setupMotor(int motorspeed, bool start){
   }
 }
 
-int getPos(){
+float getPos(){
   Serial.print("Aktuelle Postition: ");
-  float pos = (750 - steps)*0.31057; 
-  Serial.print(pos);
+  Serial.print(POS);
   Serial.println(" mm");
-  return pos;
+  return POS;
 }
 
-void setPos(int pos_in_mm){
-  int x = getPos();
-  int steps = (x - pos_in_mm)*2;
+void setPos(bool start){
   
+   if (start == true){
+      
+    switch(stateSetPos){
+      
+      case 0:
+            input_pos_in_mm = 0;
+            addSteps = 0; 
+            Serial.println("Bitte die Position in mm angeben: " );
+            delay(200);
+            input_pos_in_mm = intInput();
+            Serial.print("Ausgewählte Position ist: ");
+            Serial.print(input_pos_in_mm);
+            Serial.println(" mm");
+            x = getPos();
+            dx = (input_pos_in_mm - x);
+                      
+            if (dx > 0){
+              Serial.print("Differenz zur Position ist: ");
+              Serial.print(dx);
+              Serial.println(" mm");
+              Serial.print("Es wird zu ");
+              Serial.print(input_pos_in_mm);
+              Serial.print(" mm ");
+              Serial.println("Angefahren");
+              stateSetPos = 1;
+            }
+            else if (dx < 0){
+              Serial.print("Differenz zur Position ist: ");
+              Serial.print(dx * (-1));
+              Serial.println(" mm");
+              Serial.print("Es wird zu ");
+              Serial.print(input_pos_in_mm);
+              Serial.print(" mm ");
+              Serial.println("Angefahren");
+              stateSetPos = 2;
+            }else {
+              Serial.println("Länge ungültig! " );
+              stateSetPos = 0;
+            }
+            break;  
+      case 1:
+            addSteps = 2.87 * dx;
+            Serial.println(addSteps);
+            myMotor->step(addSteps, BACKWARD, DOUBLE);
+            POS += dx;
+            help();
+            stateInitConsole = 0;
+            break;
+
+      case 2:
+            addSteps = 2.87 * dx * (-1);
+            Serial.println(addSteps);
+            myMotor->step(addSteps, FORWARD, DOUBLE);
+            POS -= (dx * (-1));
+            help();
+            stateInitConsole = 0;
+            break;
+      }
+    }
 }
 
 void addPos(bool start){
@@ -304,7 +386,7 @@ void addPos(bool start){
             addSteps = 0; 
             Serial.println("Bitte die Länge in mm angeben: " );
             delay(200);
-            input_l_in_mm =-200;
+            input_l_in_mm = intInput();
             Serial.print("Ausgewählte länge ist: ");
             Serial.print(input_l_in_mm);
             Serial.println(" mm");
@@ -312,42 +394,43 @@ void addPos(bool start){
               Serial.print("Es wird ");
               Serial.print(input_l_in_mm);
               Serial.print(" mm ");
-              Serial.println("lang Vorwärts gefahren");
+              Serial.println("lang gefahren");
               stateAddPos = 1;
             } 
             else if (input_l_in_mm < 0){
               Serial.print("Es wird ");
               Serial.print(input_l_in_mm *(-1));
               Serial.print(" mm ");
-              Serial.println("lang Rückwerts gefahren");
+              Serial.println("lang gefahren");
               stateAddPos = 2;
             }
             else {
-              Serial.println("Länge ungültig! " );
+              Serial.println("Position ungültig! " );
               stateAddPos = 0;
             }
             break;
       
       case 1:
             
-            addSteps = input_l_in_mm * 3.105;
+            addSteps = input_l_in_mm * 2.87;
             Serial.println(addSteps);
-            myMotor->step(addSteps, FORWARD, DOUBLE);
-
+            myMotor->step(addSteps, BACKWARD, DOUBLE);
+            POS += input_l_in_mm; 
             help();
             stateInitConsole = 0;
             //stateAddPos = 0;
             break;
       
       case 2:          
-            float addSteps = input_l_in_mm * 3.105 *(-1); // 1 mm = 2,174 steps
+            float addSteps = input_l_in_mm * 2.87 *(-1); // 1 mm = 2,174 steps
             Serial.println(addSteps);
-            myMotor->step(addSteps, BACKWARD, DOUBLE);
-
+            myMotor->step(addSteps, FORWARD, DOUBLE);
+            POS -= (input_l_in_mm * (-1));
             help();
             stateInitConsole = 0;
             //stateAddPos = 0;
             break;
+            
     }
   }
 }
